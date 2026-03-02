@@ -1,0 +1,39 @@
+import type { VariantProps } from "class-variance-authority"
+import { cva } from "class-variance-authority"
+
+export { default as Button } from "./Button.vue"
+
+export const buttonVariants = cva(
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all duration-300 active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
+  {
+    variants: {
+      variant: {
+        default:
+          "neon-btn-primary text-white shadow-xs",
+        destructive:
+          "bg-destructive text-white shadow-xs hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
+        outline:
+          "border bg-background shadow-xs hover:border-[oklch(0.75_0.18_210/0.4)] hover:shadow-[0_0_12px_oklch(0.75_0.18_210/0.1)] dark:bg-input/30 dark:border-input dark:hover:border-[oklch(0.75_0.18_210/0.4)]",
+        secondary:
+          "glass-card text-foreground shadow-xs hover:border-[oklch(0.75_0.18_210/0.3)]",
+        ghost:
+          "hover:bg-[oklch(0.75_0.18_210/0.08)] hover:text-foreground dark:hover:bg-[oklch(0.75_0.18_210/0.1)]",
+        link: "text-primary underline-offset-4 hover:underline",
+        neon: "neon-btn-primary text-white",
+        glass: "glass-card text-foreground hover:neon-border-primary",
+      },
+      size: {
+        default: "h-9 px-4 py-2 has-[>svg]:px-3",
+        sm: "h-8 rounded-md gap-1.5 px-3 has-[>svg]:px-2.5",
+        lg: "h-10 rounded-md px-6 has-[>svg]:px-4",
+        icon: "size-9",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+      size: "default",
+    },
+  },
+)
+
+export type ButtonVariants = VariantProps<typeof buttonVariants>

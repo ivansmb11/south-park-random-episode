@@ -1,0 +1,13 @@
+{
+  "id": "vue-router-navigation",
+  "started": "2025-08-27T15:56:00Z",
+  "lastUpdated": "2025-08-27T15:56:00Z",
+  "status": "complete",
+  "phase": "complete",
+  "progress": {
+    "discovery": { "answered": 5, "total": 5 },
+    "detail": { "answered": 5, "total": 5 }
+  },
+  "contextFiles": ["src/main.ts", "src/App.vue", "src/components/HelloWorld.vue", "package.json", "vite.config.ts", "tsconfig.app.json"],
+  "relatedFeatures": []
+}

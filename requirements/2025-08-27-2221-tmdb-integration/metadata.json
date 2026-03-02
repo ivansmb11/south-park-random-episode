@@ -1,0 +1,19 @@
+{
+  "id": "tmdb-integration",
+  "started": "2025-08-27T22:21:00.000Z",
+  "lastUpdated": "2025-08-27T22:21:00.000Z",
+  "status": "complete",
+  "phase": "complete",
+  "progress": {
+    "discovery": { "answered": 5, "total": 5 },
+    "detail": { "answered": 5, "total": 5 }
+  },
+  "contextFiles": [
+    "src/config/adapters/http/axios.adapter.ts",
+    "src/config/adapters/backend.adapter.ts", 
+    "src/core/use-cases/movie-db/get-accout-details.use-case.ts",
+    "src/views/HomeView.vue",
+    "src/views/EpisodeView.vue"
+  ],
+  "relatedFeatures": []
+}
