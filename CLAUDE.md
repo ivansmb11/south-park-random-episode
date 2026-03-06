@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-A Vue 3 + TypeScript + Vite web app for discovering random South Park episodes. Uses the TMDB (The Movie Database) API to fetch episode data. South Park series ID on TMDB: **2190**.
+A Vue 3 + TypeScript + Vite web app for discovering random South Park episodes. Uses the TMDB API for episode data (series ID: **2190**) and Supabase for authentication and daily episode storage.
 
 ## Development Commands
 
@@ -22,10 +22,12 @@ Defined in `.env`, prefixed with `VITE_` for client-side access:
 
 - `VITE_BACKEND_URL` — TMDB API base URL (`https://api.themoviedb.org/3`)
 - `VITE_API_KEY` — TMDB API key (passed as `api_key` query param)
+- `VITE_SUPABASE_URL` — Supabase project URL
+- `VITE_SUPABASE_ANON_KEY` — Supabase anonymous/public key
 
 ## Architecture
 
-**Stack:** Vue 3 Composition API (`<script setup>`), Pinia, Vue Router, Axios, Tailwind CSS 4, shadcn-vue (reka-ui based)
+**Stack:** Vue 3 Composition API (`<script setup>`), Pinia, Vue Router, Axios, Tailwind CSS 4, shadcn-vue (reka-ui based), Supabase, Zod, vee-validate, @vueuse/motion, vue-sonner
 
 **Path alias:** `@/*` → `src/*`
 
@@ -33,69 +35,91 @@ Defined in `.env`, prefixed with `VITE_` for client-side access:
 
 ```
 src/
-├── core/                    # Domain layer
-│   ├── entities/            # TypeScript interfaces (Episode, Season, TVSeries, TMDBResponse)
-│   └── use-cases/movie-db/  # Business logic (TMDB API calls)
+├── core/
+│   ├── schemas/             # Zod schemas (source of truth for types)
+│   ├── entities/            # Re-export types + schemas from schemas/
+│   └── use-cases/
+│       ├── movie-db/        # TMDB API calls (episodes, random, paginated)
+│       ├── auth/            # Supabase auth (Google OAuth, profile CRUD)
+│       └── daily-episode/   # Daily episode (Supabase DB query + edge function)
 ├── config/
-│   ├── adapters/            # HTTP adapter pattern (abstract HttpAdapter → AxiosAdapter)
-│   └── assets.bucket.ts     # Google Cloud Storage URLs for static character images
-├── stores/                  # Pinia stores
-├── composables/             # Vue composables (useTheme, useEpisodeCache)
+│   ├── adapters/            # HTTP adapter pattern (HttpAdapter → AxiosAdapter)
+│   ├── supabase.ts          # Supabase client instance
+│   └── assets.bucket.ts     # GCS URLs for static character images
+├── stores/                  # Pinia stores (episodes, background, auth)
+├── composables/             # useTheme, useEpisodeCache, useDailyEpisode
 ├── views/                   # Route-level page components
 ├── components/              # App components + ui/ (shadcn-vue primitives)
-├── lib/                     # Utilities (TMDB image URLs, Tailwind cn() helper)
-└── router/                  # Vue Router config
+├── lib/                     # TMDB image URL builder, Tailwind cn() helper
+└── router/                  # Vue Router with auth guards
 ```
+
+### Schema → Entity Pattern
+
+Zod schemas in `src/core/schemas/` are the single source of truth. Entity files in `src/core/entities/` re-export types and schemas:
+
+```typescript
+// schemas/profile.schema.ts — defines schema + inferred types
+export const UserProfileSchema = z.object({ ... })
+export type UserProfile = z.infer<typeof UserProfileSchema>
+
+// entities/profile.entity.ts — re-exports
+export type { UserProfile } from '@/core/schemas/profile.schema'
+export { UserProfileSchema } from '@/core/schemas/profile.schema'
+```
+
+**Constraint:** Must use zod v3 (not v4) due to @vee-validate/zod peer dependency.
 
 ### HTTP Adapter Pattern
 
-`HttpAdapter` (abstract class in `config/adapters/http/http.adapter.ts`) defines get/post/put/delete/patch methods. `AxiosAdapter` implements it. A single instance `backendFetcher` is created in `config/adapters/backend.adapter.ts` pointing at TMDB with the API key injected as a query param.
+Abstract `HttpAdapter` → `AxiosAdapter`. A `backendFetcher` instance targets TMDB with API key auto-injected. Supabase calls use the Supabase client directly (not the HTTP adapter).
 
-### Use Cases
+### Authentication
 
-All in `src/core/use-cases/movie-db/`:
-
-- **get-south-park-episodes** — Core API calls: series details, season data, specific episode, all episodes
-- **get-random-episode** — Random selection with in-memory cache (24h TTL). Falls back to a fake episode if API fails
-- **get-paginated-episodes** — Batch/incremental season loading for the browse page
-- **get-account-details** — TMDB account info (unused in views currently)
-
-### Pinia Stores
-
-- **episodes** (`stores/episodes.ts`) — Main store. Holds all episodes, seasons, series details. Features 24h per-season cache, lazy loading (initial 3 seasons), incremental loading, search with season filtering, loading progress tracking
-- **background** (`stores/background.ts`) — Manages dynamic background image state (toggling, setting from episode stills)
+- **Supabase Auth** with Google OAuth (`signInWithGoogleUseCase`)
+- Auth store initializes before app mounts (`main.ts`)
+- Router guard: all routes require auth by default; opt out with `meta: { requiresAuth: false }`
+- Auth callback handled at `/auth/callback`
+- User profiles stored in Supabase `profiles` table, managed via `auth/` use cases
 
 ### Routes
 
-Defined in `src/router/index.ts` with lazy-loaded views:
+| Path | View | Auth Required |
+|------|------|:---:|
+| `/` | HomeView | Yes |
+| `/random` | RandomView | Yes |
+| `/episode/:season/:episode` | EpisodeView (Zod-validated params) | Yes |
+| `/episodes` | EpisodesView | Yes |
+| `/profile` | ProfileView | Yes |
+| `/about` | AboutView | Yes |
+| `/login` | LoginView | No |
+| `/auth/callback` | AuthCallbackView | No |
 
-| Path | View | Description |
-|------|------|-------------|
-| `/` | HomeView | Random episode generator |
-| `/random` | HomeView | Alias for home |
-| `/episode/:season/:episode` | EpisodeView | Episode detail (params parsed as integers) |
-| `/episodes` | EpisodesView | Browse all with search, filter, infinite scroll |
-| `/about` | AboutView | About page |
+### Pinia Stores
 
-### Key Views
+- **auth** — Supabase user/session/profile state, Google OAuth sign-in/out, profile CRUD
+- **episodes** — All episodes, seasons, series details. 24h per-season cache, lazy loading, search with season filtering
+- **background** — Dynamic background image toggling from episode stills
 
-- **HomeView** — "Get Random Episode" button, shows episode card, updates background image
-- **EpisodeView** — Full episode details (image, title, air date, rating, runtime, overview). Route props: `season: number`, `episode: number`
-- **EpisodesView** — Search by title/overview, filter by season, infinite scroll loading 2 seasons at a time, responsive grid
+### Key Composables
 
-### Composables
+- **useTheme** — Dark/light/system theme, localStorage persistence (`vite-ui-theme` key)
+- **useEpisodeCache** — Wraps random episode use-case with loading/error states
+- **useDailyEpisode** — Daily episode from Supabase (DB-first, edge function fallback)
 
-- **useTheme** — Dark/light/system theme with localStorage persistence (`vite-ui-theme` key), system preference listener
-- **useEpisodeCache** — Wraps random episode use-case, exposes loading/error states and cache info
+### Shared App Components
 
-### TMDB Image Utilities
+- `HeroSection` — Page title with v-motion entrance animation
+- `EpisodeCard` / `EpisodeCardSkeleton` — Reusable episode card with srcset, v-motion stagger
+- `StatCard` — Icon + value + label display
+- `SearchFilterBar` — Search input + shadcn Select season filter
+- `EmptyState` — Icon + title + description + slot
+- `FormField` — Label + slot + error/hint for vee-validate forms
 
-`src/lib/tmdb-images.ts` builds image URLs from TMDB paths. Supports poster sizes (w92–original), backdrop sizes (w300–original), and srcset generation for responsive images.
+### Notifications
 
-### UI Components
+vue-sonner `Toaster` in App.vue; use `toast.success()` / `toast.error()` in views.
 
-`src/components/ui/` contains shadcn-vue components (button, card, sidebar, sheet, dropdown-menu, collapsible, avatar, breadcrumb, input, separator, skeleton, tooltip). These use reka-ui primitives underneath and class-variance-authority for variants.
+### Animations
 
-### Layout
-
-`LayoutComponent.vue` provides the app shell: sidebar navigation (via shadcn sidebar provider), dynamic background image support, header with breadcrumb and theme toggle.
+@vueuse/motion registered as `MotionPlugin` in main.ts. Use `v-motion` directive on elements.

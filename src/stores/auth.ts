@@ -5,6 +5,7 @@ import type { UserProfile } from '@/core/entities/profile.entity'
 import { supabase } from '@/config/supabase'
 import type { UpdateProfilePayload } from '@/core/entities/profile.entity'
 import { signInWithGoogleUseCase } from '@/core/use-cases/auth/sign-in-with-google.use-case'
+import { signInWithSpotifyUseCase } from '@/core/use-cases/auth/sign-in-with-spotify.use-case'
 import { signOutUseCase } from '@/core/use-cases/auth/sign-out.use-case'
 import { getUserProfileUseCase } from '@/core/use-cases/auth/get-user-profile.use-case'
 import { updateUserProfileUseCase } from '@/core/use-cases/auth/update-user-profile.use-case'
@@ -80,6 +81,16 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  const signInWithSpotify = async () => {
+    try {
+      error.value = null
+      await signInWithSpotifyUseCase()
+    } catch (err: any) {
+      error.value = err.message || 'Failed to sign in with Spotify'
+      throw err
+    }
+  }
+
   const signOut = async () => {
     try {
       error.value = null
@@ -129,6 +140,7 @@ export const useAuthStore = defineStore('auth', () => {
     // Actions
     initialize,
     signInWithGoogle,
+    signInWithSpotify,
     signOut,
     fetchProfile,
     updateProfile,
